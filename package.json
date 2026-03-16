@@ -1,6 +1,6 @@
 {
   "name": "basic-shop-app",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A basic full-stack online shop web application",
   "main": "backend/server.js",
   "scripts": {
