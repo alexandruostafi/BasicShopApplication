@@ -32,7 +32,7 @@ jobs:
   #                      release/<name>, hotfix/<name>
   # ────────────────────────────────────────────────────────────────────────────
   branch-lint:
-    name: 🌿 Branch Name Lint
+    name: branch-lint
     runs-on: ubuntu-latest
     steps:
       - name: Check branch name
@@ -76,7 +76,7 @@ jobs:
   #    On a PR it lints every commit in the PR; on a push it lints HEAD.
   # ────────────────────────────────────────────────────────────────────────────
   commit-lint:
-    name: 📝 Commit Message Lint
+    name: commit-lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -113,7 +113,7 @@ jobs:
   # 3. Test — Unit (Jest + Supertest) + Playwright + Selenium
   # ────────────────────────────────────────────────────────────────────────────
   test:
-    name: 🧪 Tests (Unit + Playwright + Selenium)
+    name: test
     runs-on: ubuntu-latest
     needs: [branch-lint, commit-lint]
 
@@ -134,10 +134,10 @@ jobs:
         run: npm run seed
 
       # ── Unit tests ───────────────────────────────────────────────────────
-      #- name: Run unit tests
+      #- name: unit-tests
       #  run: npm run test:unit:coverage
 
-      #- name: Upload coverage report
+      #- name: unit-test-coverage-report
       #  if: always()
       #  uses: actions/upload-artifact@v4
       #  with:
@@ -145,7 +145,7 @@ jobs:
       #    path: coverage/
       #    retention-days: 14
 
-      #- name: Start app server (background)
+      #- name: start-server
       #  run: |
       #    npm start &
       #    for i in {1..20}; do
@@ -155,10 +155,10 @@ jobs:
       #    done
 
       # ── Playwright ──────────────────────────────────────────────────────
-      # - name: Install Playwright browsers
+      # - name: install-playwright-deps
       #   run: npx playwright install --with-deps chromium
 
-      # - name: Run Playwright tests
+      # - name: run-playwright-tests
       #   run: npm run test:playwright
 
       # - name: Upload Playwright report
@@ -170,13 +170,13 @@ jobs:
       #     retention-days: 14
 
       # ── Selenium ────────────────────────────────────────────────────────
-      # - name: Setup Chrome for Selenium
+      # - name: setup-selenium-chrome
       #   uses: browser-actions/setup-chrome@v1
 
-      # - name: Run Selenium tests
+      # - name: run-selenium-tests
       #   run: npm run test:selenium
 
-      # - name: Upload Selenium results
+      # - name: upload-selenium-results
       #   if: always()
       #   uses: actions/upload-artifact@v4
       #   with:

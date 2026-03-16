@@ -14,7 +14,7 @@
 #   4. Commit, tag, and push back to main.
 #   5. Create a GitHub Release with the generated notes.
 # ──────────────────────────────────────────────────────────────────────────────
-name: Version Bump
+name: version-bump
 
 on:
   pull_request:
@@ -23,7 +23,7 @@ on:
 
 jobs:
   version-bump:
-    name: 🚀 Semantic Version Bump
+    name: version-bump
     # Only run when the PR was actually merged (not just closed)
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
