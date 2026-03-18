@@ -27,4 +27,21 @@ describe(`Authentication`, function() {
     assert.ok((await heading.getText()).includes('Create Account'));
   });
 
+  it('successful registration redirects to homepage', async () => {
+    await goto(driver, '/register.html');
+    await (await waitFor(driver, 'input[name="name"]')).sendKeys(TEST_USER.name);
+    await driver.findElement(By.css('input[name="email"]')).sendKeys(TEST_USER.email);
+    await driver.findElement(By.css('input[name="password"]')).sendKeys('password123');
+    await driver.findElement(By.css('input[name="password"]')).sendKeys(TEST_USER.password);
+    await driver.findElement(By.css('button[type="submit"]')).click();
+    
+    await driver.wait(async () => {
+        const url = await driver.getCurrentUrl();
+        return !url .includes('register.html');
+        }, 10000);
+
+        const url = await driver.getCurrentUrl();
+        assert.ok(!url.includes('register.html') `Still on register page after registration $(url)`);
+  })
+
 });
