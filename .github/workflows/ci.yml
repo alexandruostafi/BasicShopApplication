@@ -170,13 +170,13 @@ jobs:
       #     retention-days: 14
 
       # ── Selenium ────────────────────────────────────────────────────────
-       - name: setup-selenium-chrome
+      - name: setup-selenium-chrome
          uses: browser-actions/setup-chrome@v1
 
-       - name: run-selenium-tests
+      - name: run-selenium-tests
          run: npm run test:selenium
 
-       - name: upload-selenium-results
+      - name: upload-selenium-results
          if: always()
          uses: actions/upload-artifact@v4
          with:
