@@ -172,9 +172,12 @@ jobs:
       # ── Selenium ────────────────────────────────────────────────────────
       - name: setup-selenium-chrome
         uses: browser-actions/setup-chrome@v1
+        id: setup-chrome
 
       - name: run-selenium-tests
         run: npm run test:selenium
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
       - name: upload-selenium-results
         if: always()

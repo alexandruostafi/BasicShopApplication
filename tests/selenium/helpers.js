@@ -19,6 +19,11 @@ async function buildDriver() {
     '--window-size=1280,800'
   );
 
+  // In CI, browser-actions/setup-chrome exports CHROME_PATH
+  if (process.env.CHROME_PATH) {
+    options.setChromeBinaryPath(process.env.CHROME_PATH);
+  }
+
   const driver = await new Builder()
     .forBrowser('chrome')
     .setChromeOptions(options)
@@ -58,4 +63,14 @@ async function loginAs(driver, email, password) {
   }, 8000);
 }
 
-module.exports = { buildDriver, goto, waitFor, loginAs, By, until, BASE_URL };
+/**
+ * Scroll an element into view and click it, avoiding ElementClickInterceptedError
+ * caused by fixed headers/footers obscuring the element.
+ */
+async function safeClick(driver, element) {
+  await driver.executeScript('arguments[0].scrollIntoView({block:"center"});', element);
+  await driver.sleep(200); // allow scroll + any sticky-header animation to settle
+  await element.click();
+}
+
+module.exports = { buildDriver, goto, waitFor, safeClick, loginAs, By, until, BASE_URL };
