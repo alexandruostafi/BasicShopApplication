@@ -3,6 +3,7 @@
 
 const { Builder, By, until } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
+const { ServiceBuilder } = require('selenium-webdriver/chrome');
 
 const BASE_URL = process.env.APP_URL || 'http://localhost:3000';
 
@@ -24,10 +25,16 @@ async function buildDriver() {
     options.setChromeBinaryPath(process.env.CHROME_PATH);
   }
 
-  const driver = await new Builder()
+  const builder = new Builder()
     .forBrowser('chrome')
-    .setChromeOptions(options)
-    .build();
+    .setChromeOptions(options);
+
+  // In CI, use the matching ChromeDriver binary provided by setup-chrome
+  if (process.env.CHROMEDRIVER_PATH) {
+    builder.setChromeService(new ServiceBuilder(process.env.CHROMEDRIVER_PATH));
+  }
+
+  const driver = await builder.build();
 
   await driver.manage().setTimeouts({ implicit: 5000, pageLoad: 15000 });
   return driver;
