@@ -46,5 +46,32 @@ describe('Authentication (Selenium)', function () {
     const url = await driver.getCurrentUrl();
     assert.ok(!url.includes('register.html'), `Still on register page: ${url}`);
   });
+  });
+  describe('Registration with duplicate user', () => {
+    before(async () => {
+      driver = await buildDriver();
+    });
 
-});
+    after(async () => {
+      if (driver) await driver.quit();
+    });
+    it('login page loads with a form', async () => {
+      await goto(driver, '/register.html');
+      await waitFor(driver, '#registerForm');
+      const heading = await driver.findElement(By.css('h2'));
+      assert.ok((await heading.getText()).includes('Create Account'));
+      });
+
+    it('duplicate email registration shows an error message', async () => {
+    await goto(driver, '/register.html');
+    await (await waitFor(driver, 'input[name="name"]')).sendKeys('Dup');
+    await driver.findElement(By.css('input[name="email"]')).sendKeys('jane@example.com');
+    await driver.findElement(By.css('input[name="password"]')).sendKeys('whatever123');
+    await driver.findElement(By.css('button[type="submit"]')).click();
+
+    const errEl = await waitFor(driver, '#registerError');
+    await driver.wait(until.elementTextMatches(errEl, /.+/), 5000);
+    const msg = await errEl.getText();
+    assert.ok(msg.length > 0, 'Expected an error message for duplicate email');
+  });
+  });
