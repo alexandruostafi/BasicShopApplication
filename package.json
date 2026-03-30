@@ -13,7 +13,7 @@
     "test:integration": "jest --selectProjects integration --runInBand",
     "test:integration:coverage": "jest --selectProjects integration --runInBand --coverage",
     "test:selenium": "mocha",
-    "test:selenium:ci": "mocha --reporter mocha-junit-reporter --reporter-option mochaFile=tests/selenium/results/results.xml",
+    "test:selenium:ci": "mocha --reporter xunit --reporter-option output=tests/selenium/results/results.xml",
     "test:selenium:serve": "concurrently --kill-others --success first \"npm start\" \"wait-on http://localhost:3000 && mocha\"",
     "test:playwright": "playwright test"
   },

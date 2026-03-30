@@ -177,10 +177,19 @@ jobs:
           install-chromedriver: true
 
       - name: run-selenium-tests
-        run: npm run test:selenium:ci
+        run: mkdir -p tests/selenium/results && npm run test:selenium:ci
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
           CHROMEDRIVER_PATH: ${{ steps.setup-chrome.outputs.chromedriver-path }}
+
+      - name: publish-selenium-report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Selenium Tests
+          path: tests/selenium/results/results.xml
+          reporter: java-junit
+          fail-on-error: false
 
       - name: upload-selenium-results
         if: always()
