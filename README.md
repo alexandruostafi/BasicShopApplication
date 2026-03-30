@@ -73,6 +73,8 @@ BasicShopApp/
 ├── tests/
 │   ├── playwright/
 │   └── selenium/
+│       ├── auth.test.js # User authentication tests
+│       └── helpers.js # Helper functions for tests implemented with Selenium
 ├── .github/
 │   ├── branch-lint.config
 │   └── workflows/
