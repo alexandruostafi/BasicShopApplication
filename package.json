@@ -1,7 +1,7 @@
 {
-  "name": "basic-shop-app",
-  "version": "1.1.0",
-  "description": "A basic full-stack online shop web application",
+  "name": "cartify",
+  "version": "1.0.0",
+  "description": "Developed a full-stack e-commerce web application with automated UI test suite using Selenium (JavaScript) and regression scenarios for checkout, authentication, and cart workflows.",
   "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
@@ -12,7 +12,9 @@
     "test:unit:coverage": "jest --selectProjects unit --coverage",
     "test:integration": "jest --selectProjects integration --runInBand",
     "test:integration:coverage": "jest --selectProjects integration --runInBand --coverage",
-    "test:selenium": "mocha 'tests/selenium/**/*.test.js' --timeout 40000",
+    "test:selenium": "mocha",
+    "test:selenium:ci": "mocha --reporter xunit --reporter-option output=tests/selenium/results/results.xml",
+    "test:selenium:serve": "concurrently --kill-others --success first \"npm start\" \"wait-on http://localhost:3000 && mocha\"",
     "test:playwright": "playwright test"
   },
   "dependencies": {
@@ -26,10 +28,12 @@
     "@commitlint/cli": "^19.3.0",
     "@commitlint/config-conventional": "^19.2.2",
     "@playwright/test": "^1.44.0",
+    "concurrently": "^9.2.1",
     "jest": "^29.7.0",
     "mocha": "^10.4.0",
     "nodemon": "^3.1.0",
     "selenium-webdriver": "^4.21.0",
-    "supertest": "^7.0.0"
+    "supertest": "^7.0.0",
+    "wait-on": "^9.0.4"
   }
 }

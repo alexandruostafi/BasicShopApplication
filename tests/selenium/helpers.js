@@ -1,8 +1,11 @@
 // tests/selenium/helpers.js
 // Shared utilities for Selenium tests
 
+const fs   = require('fs');
+const path = require('path');
 const { Builder, By, until } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
+const { ServiceBuilder } = require('selenium-webdriver/chrome');
 
 const BASE_URL = process.env.APP_URL || 'http://localhost:3000';
 
@@ -19,10 +22,21 @@ async function buildDriver() {
     '--window-size=1280,800'
   );
 
-  const driver = await new Builder()
+  // In CI, browser-actions/setup-chrome exports CHROME_PATH
+  if (process.env.CHROME_PATH) {
+    options.setChromeBinaryPath(process.env.CHROME_PATH);
+  }
+
+  const builder = new Builder()
     .forBrowser('chrome')
-    .setChromeOptions(options)
-    .build();
+    .setChromeOptions(options);
+
+  // In CI, use the matching ChromeDriver binary provided by setup-chrome
+  if (process.env.CHROMEDRIVER_PATH) {
+    builder.setChromeService(new ServiceBuilder(process.env.CHROMEDRIVER_PATH));
+  }
+
+  const driver = await builder.build();
 
   await driver.manage().setTimeouts({ implicit: 5000, pageLoad: 15000 });
   return driver;
@@ -58,4 +72,31 @@ async function loginAs(driver, email, password) {
   }, 8000);
 }
 
-module.exports = { buildDriver, goto, waitFor, loginAs, By, until, BASE_URL };
+/**
+ * Scroll an element into view and click it, avoiding ElementClickInterceptedError
+ * caused by fixed headers/footers obscuring the element.
+ */
+async function safeClick(driver, element) {
+  await driver.executeScript('arguments[0].scrollIntoView({block:"center"});', element);
+  await driver.sleep(200); // allow scroll + any sticky-header animation to settle
+  await element.click();
+}
+
+/**
+ * Capture a screenshot when a Mocha test has failed and save it to
+ * tests/selenium/results/screenshots/<test-title>.png
+ */
+async function screenshotOnFailure(driver, currentTest) {
+  if (!driver || !currentTest || currentTest.state !== 'failed') return;
+  try {
+    const img  = await driver.takeScreenshot();
+    const name = currentTest.fullTitle().replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '');
+    const dir  = path.join(__dirname, 'results', 'screenshots');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${name}.png`), img, 'base64');
+  } catch (_) {
+    // never let a screenshot failure mask the real test failure
+  }
+}
+
+module.exports = { buildDriver, goto, waitFor, safeClick, loginAs, screenshotOnFailure, By, until, BASE_URL };
