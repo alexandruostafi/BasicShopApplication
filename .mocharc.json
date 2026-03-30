@@ -1,4 +1,6 @@
 {
   "spec": "tests/selenium/**/*.test.js",
-  "timeout": 40000
+  "timeout": 40000,
+  "reporter": "mocha-multi-reporters",
+  "reporter-option": "configFile=.mocha-reporters.json"
 }
