@@ -27,10 +27,6 @@ describe('Authentication (Selenium)', function () {
     if (driver) await driver.quit();
   });
 
-  after(async () => {
-    if (driver) await driver.quit();
-  });
-
   // ── Register ──────────────────────────────────────────────────────────────
   it('register page loads with a form', async () => {
     await goto(driver, '/register.html');
@@ -121,16 +117,22 @@ describe('Authentication (Selenium)', function () {
     assert.ok((await heading.getText()).includes('Login'));
   });
 
+  it('login with wrong password shows error', async () => {
+    await goto(driver, '/login.html');
+    await (await waitFor(driver, 'input[name=email]')).sendKeys('jane@example.com');
+    await (await waitFor(driver, 'input[name=password]')).sendKeys('badpassword');
+    await (await waitFor(driver, 'button[type=submit]')).click();
+
     const errEl = await waitFor(driver, '#loginError');
     await driver.wait(until.elementTextMatches(errEl, /.+/), 5000);
     const msg = await errEl.getText();
     assert.ok(msg.length > 0, 'Expected an error for wrong password');
   });
 
-    const errEl = await waitFor(driver, '#loginError');
-    await driver.wait(until.elementTextMatches(errEl, /.+/), 5000);
-    const msg = await errEl.getText();
-    assert.ok(msg.length > 0, 'Expected an error for wrong password');
+  it('customer login succeeds and redirects to home', async () => {
+    await loginAs(driver, 'jane@example.com', 'customer123');
+    const url = await driver.getCurrentUrl();
+    assert.ok(url.endsWith('/') || url.includes('index.html'), `Unexpected URL: ${url}`);
   });
 
   it('admin login redirects to admin panel', async () => {
