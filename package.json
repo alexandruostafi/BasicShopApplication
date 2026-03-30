@@ -1,7 +1,7 @@
 {
-  "name": "basic-shop-app",
+  "name": "cartify",
   "version": "1.0.0",
-  "description": "A basic full-stack online shop web application",
+  "description": "Developed a full-stack e-commerce web application with automated UI test suite using Selenium (JavaScript) and regression scenarios for checkout, authentication, and cart workflows.",
   "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
