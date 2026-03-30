@@ -129,7 +129,7 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
+        run: npm install --save-dev mocha-junit-reporter mocha-multi-reporters
       - name: Seed database
         run: npm run seed
 
@@ -177,7 +177,7 @@ jobs:
           install-chromedriver: true
 
       - name: run-selenium-tests
-        run: npm run test:selenium
+        run: npm run test:selenium:ci
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
           CHROMEDRIVER_PATH: ${{ steps.setup-chrome.outputs.chromedriver-path }}
