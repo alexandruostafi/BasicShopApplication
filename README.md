@@ -95,6 +95,22 @@ Cartify/
 
 - [Node.js](https://nodejs.org) v18 or newer
 
+### VS Code Setup
+
+This project includes recommended extensions in `.vscode/extensions.json`.  
+When you open the project in VS Code, you'll be prompted to install them.
+
+| Extension | Purpose |
+|-----------|---------|
+| Jest | Unit test explorer integration |
+| Jest / Vitest Runner | Inline test run/debug buttons |
+| Mocha for VS Code | Selenium test explorer integration |
+| Playwright Test | E2E test explorer integration |
+| ESLint | JavaScript linting |
+| REST Client | Test API endpoints from `.http` files |
+| DotENV | `.env` file syntax highlighting |
+| Prettier | Code formatting |
+
 ### 1. Install dependencies
 
 ```bash
