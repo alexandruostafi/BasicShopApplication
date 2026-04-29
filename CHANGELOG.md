@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented here.
 
+## [2.0.1] - 2026-04-29
+
+### 🐛 Bug Fixes
+- fix: now the cart icon displays the cart count even when empty
+- fix: product image scaling by adding black background
+
+
+All notable changes to this project will be documented here.
+
 ## [2.0.0] - 2026-04-17
 
 ### ✨ Features
