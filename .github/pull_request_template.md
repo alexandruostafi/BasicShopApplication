@@ -1,6 +1,7 @@
 ## Pull Request Template 
  
 - implements `Name of the feature`
+- fixes `Name of the fix`
 
  
 ## Changes
