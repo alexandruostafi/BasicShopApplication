@@ -42,6 +42,5 @@ async function updateCartBadge() {
     const items = await res.json();
     const total = items.reduce((sum, i) => sum + i.quantity, 0);
     badge.textContent = total;
-    badge.style.display = total > 0 ? '' : 'none';
   } catch (_) {}
 }
