@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# Version Bump — BasicShopApp
+# Version Bump — Cartify
 #
 # Triggers ONLY when a Pull Request is merged into main.
 #
@@ -7,8 +7,10 @@
 #   1. Determine the next semantic version by inspecting all commit messages
 #      since the last tag using Conventional Commits rules:
 #        feat  → minor bump  (1.x.0)
-#        fix / perf / refactor / … → patch bump  (1.0.x)
+#        fix / perf / refactor / revert → patch bump  (1.0.x)
 #        BREAKING CHANGE footer or ! in type → major bump  (x.0.0)
+#      Non-user-facing types (ci, chore, docs, test, style, build) are
+#      skipped entirely — no version bump or release is created.
 #   2. Update version in package.json.
 #   3. Generate / update CHANGELOG.md.
 #   4. Commit, tag, and push back to main.
@@ -21,18 +23,27 @@ on:
     types: [closed]
     branches: [main]
 
+# Prevent race conditions when multiple PRs merge in quick succession
+concurrency:
+  group: version-bump
+  cancel-in-progress: false
+
 jobs:
   version-bump:
     name: version-bump
     # Only run when the PR was actually merged (not just closed)
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     permissions:
       contents: write   # push commits + tags
       pull-requests: read
 
     steps:
+      # BOT_ACCESS_TOKEN (PAT) is required instead of GITHUB_TOKEN because:
+      #   1. Push to a branch-protected main branch
+      #   2. Trigger downstream workflows (GITHUB_TOKEN pushes don't trigger events)
       - name: Checkout (full history)
         uses: actions/checkout@v4
         with:
@@ -60,34 +71,58 @@ jobs:
         run: |
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -z "$LAST_TAG" ]; then
-            RANGE="HEAD"
+            # No prior tag — only consider commits from this PR
+            RANGE="${{ github.event.pull_request.base.sha }}..HEAD"
           else
             RANGE="${LAST_TAG}..HEAD"
           fi
 
           echo "Analysing commits in range: $RANGE"
-          COMMITS=$(git log "$RANGE" --pretty=format:"%s")
 
-          BUMP="patch"   # default
+          BUMP=""   # empty = no release
 
-          while IFS= read -r msg; do
-            # Breaking change: footer BREAKING CHANGE or ! after type
-            if echo "$msg" | grep -qE '^[a-z]+(\([^)]*\))?!:' || \
-               git log "$RANGE" --pretty=format:"%b" | grep -q "^BREAKING CHANGE"; then
+          # User-facing commit types that warrant a release
+          RELEASE_TYPES="feat|fix|perf|refactor|revert"
+
+          while IFS= read -r HASH; do
+            SUBJECT=$(git log -1 --pretty=format:"%s" "$HASH")
+            BODY=$(git log -1 --pretty=format:"%b" "$HASH")
+
+            # Breaking change: '!' after type or BREAKING CHANGE footer
+            if echo "$SUBJECT" | grep -qE '^[a-z]+(\([^)]*\))?!:'; then
               BUMP="major"
               break
             fi
-            # feat → at least minor
-            if echo "$msg" | grep -qE '^feat(\([^)]*\))?:' && [ "$BUMP" != "major" ]; then
-              BUMP="minor"
+            if echo "$BODY" | grep -q "^BREAKING CHANGE"; then
+              BUMP="major"
+              break
             fi
-          done <<< "$COMMITS"
 
-          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
-          echo "Bump level: $BUMP"
+            # feat → at least minor
+            if echo "$SUBJECT" | grep -qE '^feat(\([^)]*\))?:'; then
+              [ "$BUMP" != "major" ] && BUMP="minor"
+            fi
+
+            # Other release-worthy types → at least patch
+            # Note: feat already sets BUMP="minor" above, so this only fires for
+            # fix/perf/refactor/revert when BUMP is still empty.
+            if echo "$SUBJECT" | grep -qE "^($RELEASE_TYPES)(\([^)]*\))?:" && [ -z "$BUMP" ]; then
+              BUMP="patch"
+            fi
+          done < <(git log "$RANGE" --pretty=format:"%H")
+
+          if [ -z "$BUMP" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No user-facing changes found — skipping release."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+            echo "Bump level: $BUMP"
+          fi
 
       # ── Calculate next version ──────────────────────────────────────────
       - name: Calculate next version
+        if: steps.bump.outputs.skip != 'true'
         id: version
         shell: bash
         run: |
@@ -109,14 +144,19 @@ jobs:
 
       # ── Generate CHANGELOG entry ────────────────────────────────────────
       - name: Generate CHANGELOG
+        if: steps.bump.outputs.skip != 'true'
         shell: bash
         run: |
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then RANGE="HEAD"; else RANGE="${LAST_TAG}..HEAD"; fi
+          if [ -z "$LAST_TAG" ]; then
+            RANGE="${{ github.event.pull_request.base.sha }}..HEAD"
+          else
+            RANGE="${LAST_TAG}..HEAD"
+          fi
 
           VERSION="${{ steps.version.outputs.next }}"
           DATE=$(date +%Y-%m-%d)
-          ENTRY="## [$VERSION] - $DATE\n"
+          ENTRY="## [$VERSION] - $DATE"
 
           declare -A SECTIONS
           SECTIONS[feat]="### ✨ Features"
@@ -131,30 +171,37 @@ jobs:
           SECTIONS[style]="### 💄 Style"
           SECTIONS[revert]="### ⏪ Reverts"
 
+          BODY=""
           for TYPE in feat fix perf refactor docs test build ci chore style revert; do
             LINES=$(git log "$RANGE" --pretty=format:"- %s" | grep -E "^- ${TYPE}(\([^)]*\))?!?:" || true)
             if [ -n "$LINES" ]; then
-              ENTRY="${ENTRY}\n${SECTIONS[$TYPE]}\n${LINES}\n"
+              BODY="${BODY}\n${SECTIONS[$TYPE]}\n${LINES}\n"
             fi
           done
 
-          # Prepend to CHANGELOG.md
-          if [ -f CHANGELOG.md ]; then
-            EXISTING=$(cat CHANGELOG.md)
-          else
-            EXISTING="# Changelog\n\nAll notable changes to this project will be documented here.\n"
-          fi
+          # Build the new entry
+          NEW_ENTRY="${ENTRY}\n${BODY}"
 
-          printf "%b\n\n%b" "# Changelog\n\nAll notable changes to this project will be documented here.\n\n${ENTRY}" \
-            "$(echo "$EXISTING" | tail -n +3)" > CHANGELOG.md
+          # Prepend to CHANGELOG.md safely (handle missing or malformed file)
+          if [ -f CHANGELOG.md ]; then
+            # Insert new entry after the first heading line
+            awk -v entry="$(printf '%b' "$NEW_ENTRY")" '
+              /^# / && !done { print; print ""; print entry; print ""; done=1; next }
+              { print }
+            ' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+          else
+            printf "# Changelog\n\nAll notable changes to this project will be documented here.\n\n%b\n" "$NEW_ENTRY" > CHANGELOG.md
+          fi
 
       # ── Bump version in package.json ────────────────────────────────────
       - name: Bump package.json version
+        if: steps.bump.outputs.skip != 'true'
         run: |
           npm version ${{ steps.version.outputs.next }} --no-git-tag-version
 
       # ── Commit, tag & push ───────────────────────────────────────────────
       - name: Commit version bump
+        if: steps.bump.outputs.skip != 'true'
         run: |
           git add package.json package-lock.json CHANGELOG.md
           git commit -m "release: bump version to ${{ steps.version.outputs.next }} [skip ci]"
@@ -163,6 +210,7 @@ jobs:
 
       # ── Create GitHub Release ────────────────────────────────────────────
       - name: Create GitHub Release
+        if: steps.bump.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
