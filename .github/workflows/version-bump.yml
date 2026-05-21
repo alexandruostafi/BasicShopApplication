@@ -45,15 +45,15 @@ jobs:
       #   1. Push to a branch-protected main branch
       #   2. Trigger downstream workflows (GITHUB_TOKEN pushes don't trigger events)
       - name: Checkout (full history)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           token: ${{ secrets.BOT_ACCESS_TOKEN }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
