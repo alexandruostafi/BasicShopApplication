@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented here.
 
+## [2.0.2] - 2026-05-21
+
+### 🔧 Chores
+- chore: add custom copilot agents
+
+
+All notable changes to this project will be documented here.
+
 ## [2.0.1] - 2026-04-29
 
 ### 🐛 Bug Fixes
