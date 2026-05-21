@@ -23,10 +23,12 @@ describe('Shopping Cart (Selenium)', function () {
     });
 
     it('cart page is accessible and shows page title and empty cart', async () => {
+        // Clear any leftover cart items from previous test runs
+        await driver.executeScript("await fetch('/api/cart', { method: 'DELETE', credentials: 'include' })");
         await goto(driver, '/cart.html');
         const heading = await waitFor(driver, 'h2');
         assert.equal(await heading.getText(), 'Your Armoury');
-        const paragraph = await waitFor(driver, 'p');
+        const paragraph = await waitFor(driver, '.cart-empty p');
         assert.match(await paragraph.getText(), /Your armoury is empty/);
     });
 
@@ -95,7 +97,7 @@ describe('Shopping Cart (Selenium)', function () {
 
         const heading = await waitFor(driver, 'h2');
         assert.equal(await heading.getText(), 'Your Armoury');
-        const paragraph = await waitFor(driver, 'p');
+        const paragraph = await waitFor(driver, '.cart-empty p');
         assert.match(await paragraph.getText(), /Your armoury is empty/);
     });
 });
