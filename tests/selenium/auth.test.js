@@ -50,7 +50,7 @@ describe('Authentication (Selenium)', function () {
     const url = await driver.getCurrentUrl();
     assert.ok(!url.includes('register.html'), `Still on register page: ${url}`);
   });
-    it('login page loads with a form', async () => {
+    it('register page is still accessible after registration', async () => {
       await goto(driver, '/register.html');
       await waitFor(driver, '#registerForm');
       const heading = await driver.findElement(By.css('h2'));

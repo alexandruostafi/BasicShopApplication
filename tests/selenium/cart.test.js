@@ -25,9 +25,9 @@ describe('Shopping Cart (Selenium)', function () {
     it('cart page is accessible and shows page title and empty cart', async () => {
         await goto(driver, '/cart.html');
         const heading = await waitFor(driver, 'h2');
-        assert.ok(await heading.getText(), 'Your Armoury');
+        assert.equal(await heading.getText(), 'Your Armoury');
         const paragraph = await waitFor(driver, 'p');
-        assert.ok(await paragraph.getText(), 'Your armoury is empty. Browse miniatures →');
+        assert.match(await paragraph.getText(), /Your armoury is empty/);
     });
 
     it('adding an item to the cart updates the cart count and shows the item in the cart', async () => {
@@ -94,8 +94,8 @@ describe('Shopping Cart (Selenium)', function () {
         assert.strictEqual(rowsAfterClear.length, 0, 'Expected all rows to be removed after clearing the cart');
 
         const heading = await waitFor(driver, 'h2');
-        assert.ok(await heading.getText(), 'Your Armoury');
+        assert.equal(await heading.getText(), 'Your Armoury');
         const paragraph = await waitFor(driver, 'p');
-        assert.ok(await paragraph.getText(), 'Your armoury is empty. Browse miniatures →');
+        assert.match(await paragraph.getText(), /Your armoury is empty/);
     });
 });

@@ -22,20 +22,29 @@ router.get('/', requireAuth, (req, res) => {
 
 // POST add/update item in cart
 router.post('/', requireAuth, (req, res) => {
-  const { product_id, quantity } = req.body;
+  const { product_id, quantity, increment } = req.body;
   if (!product_id || !quantity || quantity < 1)
     return res.status(400).json({ error: 'product_id and quantity >= 1 required.' });
 
   const product = get('SELECT stock FROM products WHERE id = ?', [product_id]);
   if (!product) return res.status(404).json({ error: 'Product not found.' });
-  if (product.stock < quantity)
+
+  // Determine the final quantity
+  let finalQty = quantity;
+  if (increment) {
+    const existing = get('SELECT quantity FROM cart WHERE user_id = ? AND product_id = ?',
+      [req.session.userId, product_id]);
+    finalQty = (existing ? existing.quantity : 0) + quantity;
+  }
+
+  if (product.stock < finalQty)
     return res.status(400).json({ error: 'Not enough stock.' });
 
   run(
     `INSERT INTO cart (user_id, product_id, quantity)
      VALUES (?, ?, ?)
      ON CONFLICT(user_id, product_id) DO UPDATE SET quantity = excluded.quantity`,
-    [req.session.userId, product_id, quantity]
+    [req.session.userId, product_id, finalQty]
   );
 
   res.json({ message: 'Cart updated.' });
@@ -43,6 +52,10 @@ router.post('/', requireAuth, (req, res) => {
 
 // DELETE single item from cart
 router.delete('/:productId', requireAuth, (req, res) => {
+  const existing = get('SELECT id FROM cart WHERE user_id = ? AND product_id = ?',
+    [req.session.userId, req.params.productId]);
+  if (!existing) return res.status(404).json({ error: 'Item not in cart.' });
+
   run('DELETE FROM cart WHERE user_id = ? AND product_id = ?',
     [req.session.userId, req.params.productId]);
   res.json({ message: 'Item removed.' });

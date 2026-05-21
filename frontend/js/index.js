@@ -63,7 +63,7 @@ async function addToCart(productId) {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ product_id: productId, quantity: 1 })
+      body: JSON.stringify({ product_id: productId, quantity: 1, increment: true })
     });
     const data = await res.json();
     if (!res.ok) {

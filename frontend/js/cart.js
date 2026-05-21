@@ -1,97 +1,129 @@
-// cart.js – shopping cart page
-const cartContent = document.getElementById('cartContent');
+const express = require('express');
+const router  = express.Router();
+const { all, get, run, _run, transaction } = require('../db');
 
-function escHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function requireAuth(req, res, next) {
+  if (!req.session.userId)
+    return res.status(401).json({ error: 'Please log in first.' });
+  next();
 }
 
-async function loadCart() {
-  cartContent.innerHTML = '<p class="loading">Inspecting armoury…</p>';
-
-  const res = await fetch('/api/cart', { credentials: 'include' });
-  if (res.status === 401) {
-    cartContent.innerHTML = `
-      <div class="cart-empty">
-        <p>Please <a href="login.html">log in</a> to view your cart.</p>
-      </div>`;
-    return;
-  }
-
-  const items = await res.json();
-  if (items.length === 0) {
-    cartContent.innerHTML = `
-      <div class="cart-empty">
-        <p>Your armoury is empty. <a href="index.html">Browse miniatures →</a></p>
-      </div>`;
-    return;
-  }
-
-  const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-
-  cartContent.innerHTML = `
-    <table class="cart-table">
-      <thead>
-        <tr>
-          <th></th>
-          <th>Product</th>
-          <th>Price</th>
-          <th>Qty</th>
-          <th>Subtotal</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        ${items.map(i => `
-          <tr id="row-${i.product_id}">
-            <td><img src="${i.image_url || 'https://via.placeholder.com/56'}" alt="" /></td>
-            <td><a href="product.html?id=${i.product_id}">${escHtml(i.name)}</a></td>
-            <td>$${i.price.toFixed(2)}</td>
-            <td>
-              <input class="qty-input" type="number" value="${i.quantity}" min="1" max="${i.stock}"
-                     data-id="${i.product_id}" onchange="updateQty(${i.product_id}, this.value)" />
-            </td>
-            <td>$${(i.price * i.quantity).toFixed(2)}</td>
-            <td>
-              <button class="btn btn-danger btn-sm" onclick="removeItem(${i.product_id})">✕</button>
-            </td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-    <div class="cart-summary">
-      <div class="cart-summary-box">
-        <div class="total-row"><span>Total</span><span>$${total.toFixed(2)}</span></div>
-        <a href="checkout.html" class="btn btn-primary btn-block">Proceed to Checkout</a>
-        <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="clearCart()">Clear Cart</button>
-      </div>
-    </div>
-  `;
+function requireAdmin(req, res, next) {
+  if (req.session.role !== 'admin')
+    return res.status(403).json({ error: 'Admin access required.' });
+  next();
 }
 
-async function updateQty(productId, qty) {
-  qty = parseInt(qty, 10);
-  if (!qty || qty < 1) return;
-  await fetch('/api/cart', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ product_id: productId, quantity: qty })
+// POST place order (checkout)
+router.post('/', requireAuth, (req, res) => {
+  const { full_name, address, city, postal_code, country } = req.body;
+  if (!full_name || !address || !city || !postal_code || !country)
+    return res.status(400).json({ error: 'All shipping fields are required.' });
+
+  const cartItems = all(
+    `SELECT c.quantity, p.id AS product_id, p.price, p.stock, p.name
+     FROM cart c
+     JOIN products p ON c.product_id = p.id
+     WHERE c.user_id = ?`,
+    [req.session.userId]
+  );
+
+  if (cartItems.length === 0)
+    return res.status(400).json({ error: 'Cart is empty.' });
+
+  const total = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+  const placeOrder = transaction(() => {
+    // Re-check stock inside the transaction to prevent race conditions
+    for (const item of cartItems) {
+      const current = get('SELECT stock FROM products WHERE id = ?', [item.product_id]);
+      if (!current || current.stock < item.quantity) {
+        throw new Error(`Not enough stock for "${item.name}".`);
+      }
+    }
+
+    const order = _run(
+      'INSERT INTO orders (user_id, total, full_name, address, city, postal_code, country) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [req.session.userId, total, full_name, address, city, postal_code, country]
+    );
+    const orderId = order.lastInsertRowid;
+
+    for (const item of cartItems) {
+      _run(
+        'INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?)',
+        [orderId, item.product_id, item.quantity, item.price]
+      );
+      _run('UPDATE products SET stock = stock - ? WHERE id = ?', [item.quantity, item.product_id]);
+    }
+
+    _run('DELETE FROM cart WHERE user_id = ?', [req.session.userId]);
+    return orderId;
   });
-  loadCart();
-  updateCartBadge();
-}
 
-async function removeItem(productId) {
-  await fetch(`/api/cart/${productId}`, { method: 'DELETE', credentials: 'include' });
-  loadCart();
-  updateCartBadge();
-}
+  try {
+    const orderId = placeOrder();
+    res.status(201).json({ message: 'Order placed successfully.', orderId });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
 
-async function clearCart() {
-  if (!confirm('Purge your entire armoury?')) return;
-  await fetch('/api/cart', { method: 'DELETE', credentials: 'include' });
-  loadCart();
-  updateCartBadge();
-}
+// GET orders for current user
+router.get('/my', requireAuth, (req, res) => {
+  const orders = all(
+    'SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC',
+    [req.session.userId]
+  );
 
-loadCart();
+  const result = orders.map(order => {
+    const items = all(
+      `SELECT oi.*, p.name, p.image_url
+       FROM order_items oi
+       JOIN products p ON oi.product_id = p.id
+       WHERE oi.order_id = ?`,
+      [order.id]
+    );
+    return { ...order, items };
+  });
+
+  res.json(result);
+});
+
+// GET all orders (admin)
+router.get('/', requireAdmin, (req, res) => {
+  const orders = all(
+    `SELECT o.*, u.name AS customer_name, u.email AS customer_email
+     FROM orders o
+     JOIN users u ON o.user_id = u.id
+     ORDER BY o.created_at DESC`
+  );
+
+  const result = orders.map(order => {
+    const items = all(
+      `SELECT oi.*, p.name
+       FROM order_items oi
+       JOIN products p ON oi.product_id = p.id
+       WHERE oi.order_id = ?`,
+      [order.id]
+    );
+    return { ...order, items };
+  });
+
+  res.json(result);
+});
+
+// PATCH update order status (admin)
+router.patch('/:id/status', requireAdmin, (req, res) => {
+  const { status } = req.body;
+  const valid = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+  if (!valid.includes(status))
+    return res.status(400).json({ error: 'Invalid status.' });
+
+  const existing = get('SELECT id FROM orders WHERE id = ?', [req.params.id]);
+  if (!existing) return res.status(404).json({ error: 'Order not found.' });
+
+  run('UPDATE orders SET status = ? WHERE id = ?', [status, req.params.id]);
+  res.json({ message: 'Order status updated.' });
+});
+
+module.exports = router;

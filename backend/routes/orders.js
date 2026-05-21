@@ -31,14 +31,17 @@ router.post('/', requireAuth, (req, res) => {
   if (cartItems.length === 0)
     return res.status(400).json({ error: 'Cart is empty.' });
 
-  for (const item of cartItems) {
-    if (item.stock < item.quantity)
-      return res.status(400).json({ error: `Not enough stock for "${item.name}".` });
-  }
-
   const total = cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
   const placeOrder = transaction(() => {
+    // Re-check stock inside the transaction to prevent race conditions
+    for (const item of cartItems) {
+      const current = get('SELECT stock FROM products WHERE id = ?', [item.product_id]);
+      if (!current || current.stock < item.quantity) {
+        throw new Error(`Not enough stock for "${item.name}".`);
+      }
+    }
+
     const order = _run(
       'INSERT INTO orders (user_id, total, full_name, address, city, postal_code, country) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [req.session.userId, total, full_name, address, city, postal_code, country]
@@ -57,8 +60,12 @@ router.post('/', requireAuth, (req, res) => {
     return orderId;
   });
 
-  const orderId = placeOrder();
-  res.status(201).json({ message: 'Order placed successfully.', orderId });
+  try {
+    const orderId = placeOrder();
+    res.status(201).json({ message: 'Order placed successfully.', orderId });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
 });
 
 // GET orders for current user
