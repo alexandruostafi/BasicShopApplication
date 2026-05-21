@@ -1,10 +1,10 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# CI Pipeline — BasicShopApp
+# CI Pipeline — Cartify
 #
 # Jobs:
 #   1. branch-lint   – validate branch name format on every push / PR
 #   2. commit-lint   – validate commit messages on push / PR
-#   3. test          – run Playwright + Selenium test suites
+#   3. test          – run Selenium test suite
 #
 # Triggers:
 #   • push  to any branch
@@ -23,6 +23,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Restrict default permissions — each job grants only what it needs
+permissions: {}
+
 jobs:
   # ────────────────────────────────────────────────────────────────────────────
   # 1. Branch-lint
@@ -34,23 +37,32 @@ jobs:
   branch-lint:
     name: branch-lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
+      - name: Checkout (config file only)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/branch-lint.config
+          sparse-checkout-cone-mode: false
+
       - name: Check branch name
         shell: bash
         run: |
           BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
           echo "Branch: $BRANCH"
 
-          SPECIAL="^(main|master|develop|dev|staging|(release|hotfix)\/[a-z0-9][a-z0-9._-]*)$"
-          FEATURE="^[a-z]+(-[a-z0-9]+)+$"
+          # Read pattern from config file (single source of truth)
+          PATTERN=$(grep '^BRANCH_PATTERN' .github/branch-lint.config \
+            | sed 's/^BRANCH_PATTERN *= *"//;s/"$//')
 
-          if [[ "$BRANCH" =~ $SPECIAL ]]; then
-            echo "✅ Branch '$BRANCH' matches a special branch pattern."
-            exit 0
+          if [[ -z "$PATTERN" ]]; then
+            echo "❌ Could not read BRANCH_PATTERN from .github/branch-lint.config"
+            exit 1
           fi
 
-          if [[ "$BRANCH" =~ $FEATURE ]]; then
-            echo "✅ Branch '$BRANCH' matches the feature pattern (verb-segment[-segment...])."
+          if [[ "$BRANCH" =~ $PATTERN ]]; then
+            echo "✅ Branch '$BRANCH' matches the allowed pattern."
             exit 0
           fi
 
@@ -78,6 +90,8 @@ jobs:
   commit-lint:
     name: commit-lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -90,8 +104,8 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install commitlint
-        run: npm install --save-dev @commitlint/cli @commitlint/config-conventional
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
 
       - name: Lint commits (PR)
         if: github.event_name == 'pull_request'
@@ -103,11 +117,24 @@ jobs:
 
       - name: Lint commits (push)
         if: github.event_name == 'push'
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.event.after }}
         run: |
-          npx commitlint \
-            --from "HEAD~1" \
-            --to   "HEAD" \
-            --verbose
+          # Validate SHA format to prevent injection
+          [[ "$BEFORE_SHA" =~ ^[0-9a-f]{40}$ ]] || [[ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]] || { echo "Invalid before SHA"; exit 1; }
+          [[ "$AFTER_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid after SHA"; exit 1; }
+
+          # Lint all new commits in this push (handles force-pushes with multiple commits)
+          if [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            # New branch — lint only HEAD
+            npx commitlint --from "HEAD~1" --to "HEAD" --verbose
+          else
+            npx commitlint \
+              --from "$BEFORE_SHA" \
+              --to   "$AFTER_SHA" \
+              --verbose
+          fi
 
   # ────────────────────────────────────────────────────────────────────────────
   # 3. Test — Unit (Jest + Supertest) + Playwright + Selenium
@@ -116,6 +143,7 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     needs: [branch-lint, commit-lint]
+    timeout-minutes: 15
     permissions:
       checks: write
       contents: read
@@ -151,8 +179,12 @@ jobs:
       - name: start-server
         run: |
           npm start &
+          SERVER_READY=false
           for i in {1..20}; do
-            curl -sf http://localhost:3000/api/products && break
+            if curl -sf http://localhost:3000/api/products > /dev/null; then
+              SERVER_READY=true
+              break
+            fi
             echo "Waiting for server… ($i)"
             sleep 2
           done
